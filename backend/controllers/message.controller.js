@@ -8,25 +8,27 @@ const LLM_API_URL = 'https://api.openai.com/v1/completions'; // replace with act
 
 const mockApiResponse = (message) => {
     return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ data: { response: `Automated response to: ${message}` } });
-      }, 2000); // mock 2 seconds delay
+        setTimeout(() => {
+            resolve({ data: { response: `Automated response to: ${message}` } });
+        }, 2000); // mock 2 seconds delay
     });
 };
 
 const sendAutomatedResponse = async (message) => {
+    console.log('Sending automated response for message:', message); // Add log here
     try {
-      const response = await Promise.race([
-        axios.post(LLM_API_URL, { message }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
-      ]);
-      return response.data.response;
+        const response = await Promise.race([
+            axios.post(LLM_API_URL, { message }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+        ]);
+        console.log('Automated response received:', response.data.response); // Add log here
+        return response.data.response;
     } catch (error) {
-      if (error.message === 'timeout') {
-        return 'User is currently unavailable.';
-      }
-      console.error('Error in sendAutomatedResponse: ', error.message);
-      return 'Error in generating response.';
+        if (error.message === 'timeout') {
+            return 'User is currently unavailable.';
+        }
+        console.error('Error in sendAutomatedResponse: ', error.message);
+        return 'Error in generating response.';
     }
 };
 
@@ -58,17 +60,18 @@ export const sendMessage = async (req, res) => {
         });
 
         if (receiver.status === 'BUSY') {
+            console.log('Recipient is busy, sending automated response'); // Add log here
             const automatedResponse = await sendAutomatedResponse(message);
             const autoMessage = new Message({
-              senderId: receiverId,
-              receiverId: senderId,
-              message: automatedResponse,
+                senderId: receiverId,
+                receiverId: senderId,
+                message: automatedResponse,
             });
             await autoMessage.save();
             io.to(getReceiverSocketId(senderId)).emit('newMessage', autoMessage);
-          }
+        }
 
-          conversation.messages.push(newMessage._id);
+        conversation.messages.push(newMessage._id);
 
         if (newMessage) {
             conversation.messages.push(newMessage._id);
