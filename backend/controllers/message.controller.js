@@ -1,12 +1,45 @@
 import Conversation from "../models/conversation.model.js";
 import Message from "../models/message.model.js";
 import { getReceiverSocketId, io } from "../socket/socket.js";
+import axios from 'axios';
+
+const LLM_API_URL = 'https://api.openai.com/v1/completions'; // replace with actual API
+
+const mockApiResponse = (message) => {
+	return new Promise((resolve) => {
+	  setTimeout(() => {
+		resolve({ data: { response: `Automated response to: ${message}` } });
+	  }, 2000); // mock 2 seconds delay
+	});
+  };
+  
+  const sendAutomatedResponse = async (message) => {
+	try {
+	  const response = await Promise.race([
+		axios.post(LLM_API_URL, { message }),
+		new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+	  ]);
+	  return response.data.response;
+	} catch (error) {
+	  if (error.message === 'timeout') {
+		return 'User is currently unavailable.';
+	  }
+	  console.error('Error in sendAutomatedResponse: ', error.message);
+	  return 'Error in generating response.';
+	}
+  };
+  
 
 export const sendMessage = async (req, res) => {
 	try {
 		const { message } = req.body;
 		const { id: receiverId } = req.params;
 		const senderId = req.user._id;
+
+		const receiver = await User.findById(receiverId);
+    	if (!receiver) {
+      		return res.status(404).json({ error: 'Recipient not found' });
+    	}
 
 		let conversation = await Conversation.findOne({
 			participants: { $all: [senderId, receiverId] },
@@ -23,6 +56,20 @@ export const sendMessage = async (req, res) => {
 			receiverId,
 			message,
 		});
+
+		if (receiver.status === 'BUSY') {
+			const automatedResponse = await sendAutomatedResponse(message);
+			const autoMessage = new Message({
+			  senderId: receiverId,
+			  receiverId: senderId,
+			  message: automatedResponse,
+			});
+			await autoMessage.save();
+			io.to(getReceiverSocketId(senderId)).emit('newMessage', autoMessage);
+		  }
+
+		  conversation.messages.push(newMessage._id);
+
 
 		if (newMessage) {
 			conversation.messages.push(newMessage._id);

@@ -12,3 +12,16 @@ export const getUsersForSidebar = async (req, res) => {
 		res.status(500).json({ error: "Internal server error" });
 	}
 };
+
+export const updateUserStatus = async (req, res) => {
+	try {
+	  const { status } = req.body;
+	  const userId = req.user._id;
+	  const updatedUser = await User.findByIdAndUpdate(userId, { status }, { new: true });
+  
+	  res.status(200).json(updatedUser);
+	} catch (error) {
+	  console.error('Error in updateUserStatus: ', error.message);
+	  res.status(500).json({ error: 'Internal server error' });
+	}
+  };
